@@ -1,8 +1,14 @@
 import { Handler } from "@netlify/functions";
 import chromium from "chrome-aws-lambda";
 import puppeteer from "puppeteer-core";
+import qs from "qs";
 
 import { requestBodySchema } from "../../lib/schema/gen-pdf";
+
+const corsSettings = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE",
+};
 
 export const handler: Handler = async (event, context) => {
   if (event.httpMethod === "POST") {
@@ -12,6 +18,7 @@ export const handler: Handler = async (event, context) => {
     if (!testedBody.success)
       return {
         statusCode: 403,
+        headers: corsSettings,
         body: JSON.stringify(testedBody),
       };
 
@@ -23,6 +30,8 @@ export const handler: Handler = async (event, context) => {
       domain: url.hostname,
     }));
 
+    const queryString = qs.stringify(testedBody.data.pdfInfo);
+
     const browser = await puppeteer.launch({
       args: chromium.args,
       executablePath:
@@ -32,6 +41,15 @@ export const handler: Handler = async (event, context) => {
     const page = await browser.newPage();
 
     await page.setCookie(...cookies);
+    await page.setViewport({
+      width: 1366,
+      height: 768,
+      isLandScape: true,
+    });
+
+    await page.goto(`${process.env.MAIN_WEB_ENTRYPOINT}/print?${queryString}`, {
+      waitUntil: "networkidle0",
+    });
 
     await page.emulateMediaType("screen");
 
@@ -45,7 +63,7 @@ export const handler: Handler = async (event, context) => {
 
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/pdf" },
+      headers: { "Content-Type": "application/pdf", ...corsSettings },
       body: ss.toString("base64"),
       isBase64Encoded: true,
     };
@@ -53,6 +71,7 @@ export const handler: Handler = async (event, context) => {
 
   return {
     statusCode: 404,
+    headers: corsSettings,
     body: "Only support POST method!",
   };
 };

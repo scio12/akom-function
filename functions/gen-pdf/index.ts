@@ -12,7 +12,7 @@ const corsSettings = {
 
 export const handler: Handler = async (event, context) => {
   if (event.httpMethod === "POST") {
-    const parsedBody = JSON.parse(event.body);
+    const parsedBody = JSON.parse(event.body as string);
     const testedBody = await requestBodySchema.safeParseAsync(parsedBody);
 
     if (!testedBody.success)
@@ -22,7 +22,11 @@ export const handler: Handler = async (event, context) => {
         body: JSON.stringify(testedBody),
       };
 
-    const url = new URL(testedBody.data.userInfo["next-auth.callback-url"]);
+    const stringUrl = testedBody.data.userInfo["next-auth.callback-url"]
+      ? (testedBody.data.userInfo["next-auth.callback-url"] as string)
+      : (testedBody.data.userInfo["__Secure-next-auth.callback-url"] as string);
+
+    const url = new URL(stringUrl);
 
     const cookies = Object.keys(testedBody.data.userInfo).map((name) => ({
       name,
@@ -44,7 +48,7 @@ export const handler: Handler = async (event, context) => {
     await page.setViewport({
       width: 1366,
       height: 768,
-      isLandScape: true,
+      isLandscape: true,
     });
 
     await page.goto(`${process.env.MAIN_WEB_ENTRYPOINT}/print?${queryString}`, {
